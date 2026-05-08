@@ -8,6 +8,12 @@ import { isExplicitConfirmation } from "../utils/confirmation.js";
 import { buildSystemPrompt } from "./system-prompt.js";
 
 const MAX_TOOL_CALLS = 5;
+const TOOL_CALL_LIMIT_MESSAGE =
+  "Não consegui concluir essa solicitação com segurança. Pode reformular seu pedido?";
+const TOOL_FAILURE_MESSAGE =
+  "Não consegui executar uma operação necessária agora. Pode tentar novamente?";
+const MODEL_FAILURE_MESSAGE =
+  "Desculpe, tive um problema ao processar sua mensagem. Pode tentar novamente?";
 
 export type ToolCallLogEntry = {
   tool: string;
@@ -57,6 +63,35 @@ const extractToolCallsLog = (messages: MessageData[]): ToolCallLogEntry[] => {
   return log;
 };
 
+const isToolCallLimitError = (error: unknown): boolean =>
+  error instanceof Error &&
+  error.message.includes("Exceeded maximum tool call iterations");
+
+const isToolExecutionError = (error: unknown): boolean =>
+  error instanceof Error &&
+  (error.name === "ZodError" || error.message.toLowerCase().includes("tool"));
+
+const getAgentFailureMessage = (error: unknown): string => {
+  if (isToolCallLimitError(error)) {
+    return TOOL_CALL_LIMIT_MESSAGE;
+  }
+
+  if (isToolExecutionError(error)) {
+    return TOOL_FAILURE_MESSAGE;
+  }
+
+  return MODEL_FAILURE_MESSAGE;
+};
+
+const storeConversationTurn = (
+  sessionId: string,
+  userMessage: string,
+  assistantMessage: string,
+): void => {
+  addSessionMessage(sessionId, { role: "user", content: userMessage });
+  addSessionMessage(sessionId, { role: "assistant", content: assistantMessage });
+};
+
 export const runShopMindAgent = async (input: {
   message: string;
   session_id: string;
@@ -70,13 +105,28 @@ export const runShopMindAgent = async (input: {
     setCheckoutAllowed(input.session_id, false);
   }
 
-  const response = await ai.generate({
-    system: buildSystemPrompt(input.session_id),
-    messages: history,
-    prompt: input.message,
-    tools: allTools,
-    maxTurns: MAX_TOOL_CALLS,
-  });
+  let response: Awaited<ReturnType<typeof ai.generate>>;
+
+  try {
+    response = await ai.generate({
+      system: buildSystemPrompt(input.session_id),
+      messages: history,
+      prompt: input.message,
+      tools: allTools,
+      maxTurns: MAX_TOOL_CALLS,
+    });
+  } catch (error) {
+    const message = getAgentFailureMessage(error);
+
+    console.error("ShopMind agent failed", error);
+    storeConversationTurn(input.session_id, input.message, message);
+
+    return {
+      message,
+      tool_calls_log: [],
+      tool_calls_count: 0,
+    };
+  }
 
   let tool_calls_log = extractToolCallsLog(response.messages);
 
@@ -86,12 +136,10 @@ export const runShopMindAgent = async (input: {
 
   if (tool_calls_log.length > MAX_TOOL_CALLS) {
     tool_calls_log = tool_calls_log.slice(0, MAX_TOOL_CALLS);
-    message =
-      "Atingi o limite de operações por mensagem. Pode dividir seu pedido em etapas menores?";
+    message = TOOL_CALL_LIMIT_MESSAGE;
   }
 
-  addSessionMessage(input.session_id, { role: "user", content: input.message });
-  addSessionMessage(input.session_id, { role: "assistant", content: message });
+  storeConversationTurn(input.session_id, input.message, message);
 
   return { message, tool_calls_log, tool_calls_count: tool_calls_log.length };
 };

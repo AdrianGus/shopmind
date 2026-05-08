@@ -53,13 +53,21 @@ export const checkout = ({
   confirmed,
 }: CheckoutInput): CheckoutResult => {
   if (!confirmed) {
-    throw new ServiceError("Checkout confirmation is required", 400);
+    throw new ServiceError(
+      "Confirme o fechamento do pedido antes de concluir a compra.",
+      400,
+      "CHECKOUT_CONFIRMATION_REQUIRED",
+    );
   }
 
   const cart = getStoredCart(sessionId);
 
   if (cart.items.length === 0) {
-    throw new ServiceError("Cart is empty", 400);
+    throw new ServiceError(
+      "Seu carrinho está vazio. Quer que eu te ajude a encontrar algum produto?",
+      400,
+      "CART_EMPTY",
+    );
   }
 
   const items = cart.items.map<OrderItem>((item) => ({
@@ -107,7 +115,11 @@ export const getOrderStatus = (orderId: string): Order => {
   const mockOrder = ordersMock.find((order) => order.orderId === orderId);
 
   if (!mockOrder) {
-    throw new ServiceError("Order not found", 404);
+    throw new ServiceError(
+      "Não encontrei o pedido informado. Confira se o código está correto.",
+      404,
+      "ORDER_NOT_FOUND",
+    );
   }
 
   return mockOrder;

@@ -3,6 +3,7 @@ import "dotenv/config";
 import express from "express";
 import type { ErrorRequestHandler, RequestHandler } from "express";
 import { agentRouter } from "./routes/agent.routes.js";
+import { isServiceError } from "./utils/errors.js";
 
 const app = express();
 const port = Number.parseInt(process.env.PORT ?? "3000", 10);
@@ -35,8 +36,9 @@ const errorHandler: ErrorRequestHandler = (err: unknown, _req, res, next) => {
     err instanceof Error && "statusCode" in err && typeof err.statusCode === "number"
       ? err.statusCode
       : 500;
-  const message =
-    process.env.NODE_ENV === "production"
+  const message = isServiceError(err)
+    ? err.message
+    : process.env.NODE_ENV === "production"
       ? "Internal server error"
       : err instanceof Error
         ? err.message

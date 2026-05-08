@@ -5,6 +5,7 @@ import { checkout } from "../../services/order.service.js";
 import { getSession, setCheckoutAllowed } from "../../stores/session.store.js";
 import { ServiceError } from "../../utils/errors.js";
 import { ai } from "../genkit.js";
+import { runToolSafely } from "./tool-result.js";
 
 const checkoutInputSchema = z.object({
   session_id: z.string().trim().min(1),
@@ -19,17 +20,20 @@ export const checkoutTool: ToolAction = ai.defineTool(
     inputSchema: checkoutInputSchema,
   },
   async ({ session_id: sessionId, confirmed }) => {
-    const session = getSession(sessionId);
+    return runToolSafely(() => {
+      const session = getSession(sessionId);
 
-    if (!session.checkoutAllowed) {
-      throw new ServiceError(
-        "Checkout blocked: explicit user confirmation is required after reviewing the cart.",
-        403,
-      );
-    }
+      if (!session.checkoutAllowed) {
+        throw new ServiceError(
+          "Para fechar o pedido, confirme explicitamente depois de revisar o carrinho.",
+          403,
+          "CHECKOUT_BLOCKED",
+        );
+      }
 
-    const result = checkout({ sessionId, confirmed });
-    setCheckoutAllowed(sessionId, false);
-    return result;
+      const result = checkout({ sessionId, confirmed });
+      setCheckoutAllowed(sessionId, false);
+      return result;
+    });
   },
 );

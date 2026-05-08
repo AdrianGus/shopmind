@@ -20,17 +20,29 @@ export const addToCart = ({
   sessionId,
 }: AddToCartInput): Cart => {
   if (!Number.isInteger(quantity) || quantity <= 0) {
-    throw new ServiceError("Quantity must be a positive integer", 400);
+    throw new ServiceError(
+      "Informe uma quantidade válida para adicionar ao carrinho.",
+      400,
+      "INVALID_QUANTITY",
+    );
   }
 
   const product = productsMock.find((item) => item.id === productId);
 
   if (!product) {
-    throw new ServiceError("Product not found", 404);
+    throw new ServiceError(
+      "Não encontrei esse produto no catálogo.",
+      404,
+      "PRODUCT_NOT_FOUND",
+    );
   }
 
   if (product.stock <= 0) {
-    throw new ServiceError("Product is out of stock", 409);
+    throw new ServiceError(
+      "Esse produto está sem estoque, então não adicionei ao carrinho.",
+      409,
+      "OUT_OF_STOCK",
+    );
   }
 
   const cart = getStoredCart(sessionId);
@@ -38,7 +50,11 @@ export const addToCart = ({
   const quantityInCart = existingItem?.quantity ?? 0;
 
   if (quantityInCart + quantity > product.stock) {
-    throw new ServiceError("Requested quantity exceeds available stock", 409);
+    throw new ServiceError(
+      "Não há estoque suficiente para essa quantidade, então não adicionei ao carrinho.",
+      409,
+      "INSUFFICIENT_STOCK",
+    );
   }
 
   return addCartItem(sessionId, {

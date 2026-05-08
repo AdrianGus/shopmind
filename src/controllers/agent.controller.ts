@@ -8,13 +8,35 @@ const agentRequestSchema = z.object({
   session_id: z.string().trim().min(1),
 });
 
+const hasPayloadField = (body: unknown, field: "message" | "session_id"): boolean =>
+  typeof body === "object" && body !== null && field in body;
+
+const getInvalidPayloadMessage = (body: unknown): string => {
+  const hasMessage = hasPayloadField(body, "message");
+  const hasSessionId = hasPayloadField(body, "session_id");
+
+  if (!hasMessage && !hasSessionId) {
+    return "message and session_id are required";
+  }
+
+  if (!hasMessage) {
+    return "message is required";
+  }
+
+  if (!hasSessionId) {
+    return "session_id is required";
+  }
+
+  return "message and session_id must be non-empty strings";
+};
+
 export const handleAgentRequest: RequestHandler = async (req, res) => {
   const validation = agentRequestSchema.safeParse(req.body);
 
   if (!validation.success) {
     res.status(400).json({
       status: "error",
-      message: "message and session_id are required",
+      message: getInvalidPayloadMessage(req.body),
     });
     return;
   }

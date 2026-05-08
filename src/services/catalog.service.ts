@@ -67,7 +67,11 @@ export const getProductDetails = (productId: string): Product => {
   const product = productsMock.find((item) => item.id === productId);
 
   if (!product) {
-    throw new ServiceError("Product not found", 404);
+    throw new ServiceError(
+      "Não encontrei esse produto no catálogo.",
+      404,
+      "PRODUCT_NOT_FOUND",
+    );
   }
 
   return product;

@@ -3,6 +3,7 @@ import { z } from "genkit";
 
 import { getSession } from "../../stores/session.store.js";
 import { ai } from "../genkit.js";
+import { runToolSafely } from "./tool-result.js";
 
 const resolveReferenceInputSchema = z.object({
   session_id: z.string().trim().min(1),
@@ -16,19 +17,20 @@ export const resolveReferenceTool: ToolAction = ai.defineTool(
       "Resolve a positional reference (e.g., 1 for 'primeiro item') from the last catalog search results in the session.",
     inputSchema: resolveReferenceInputSchema,
   },
-  async ({ session_id: sessionId, position }) => {
-    const { lastCatalogResults } = getSession(sessionId);
+  async ({ session_id: sessionId, position }) =>
+    runToolSafely(() => {
+      const { lastCatalogResults } = getSession(sessionId);
 
-    if (lastCatalogResults.length === 0) {
-      return { error: "Nenhum resultado de busca recente encontrado nesta sessão." };
-    }
+      if (lastCatalogResults.length === 0) {
+        return { error: "Nenhum resultado de busca recente encontrado nesta sessão." };
+      }
 
-    if (position > lastCatalogResults.length) {
-      return {
-        error: `Posição inválida. A última busca retornou ${lastCatalogResults.length} resultado(s).`,
-      };
-    }
+      if (position > lastCatalogResults.length) {
+        return {
+          error: `Posição inválida. A última busca retornou ${lastCatalogResults.length} resultado(s).`,
+        };
+      }
 
-    return lastCatalogResults[position - 1];
-  },
+      return lastCatalogResults[position - 1];
+    }),
 );
