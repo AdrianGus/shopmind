@@ -14,6 +14,40 @@ const TOOL_FAILURE_MESSAGE =
   "Não consegui executar uma operação necessária agora. Pode tentar novamente?";
 const MODEL_FAILURE_MESSAGE =
   "Desculpe, tive um problema ao processar sua mensagem. Pode tentar novamente?";
+const RATE_LIMIT_MESSAGE =
+  "Limite de uso da API Gemini atingido (cota ou muitas requisições por minuto). Aguarde ~1 minuto e tente de novo, ou confira plano e faturamento no Google AI Studio.";
+
+const sleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+
+const isRateLimitError = (error: unknown): boolean => {
+  if (error && typeof error === "object" && "code" in error && error.code === 429) {
+    return true;
+  }
+
+  if (error && typeof error === "object" && "status" in error && error.status === "RESOURCE_EXHAUSTED") {
+    return true;
+  }
+
+  const text =
+    error instanceof Error
+      ? error.message
+      : typeof error === "object" &&
+          error !== null &&
+          "originalMessage" in error &&
+          typeof (error as { originalMessage?: unknown }).originalMessage === "string"
+        ? (error as { originalMessage: string }).originalMessage
+        : String(error);
+
+  return (
+    /\b429\b/.test(text) ||
+    /RESOURCE_EXHAUSTED/i.test(text) ||
+    /quota exceeded/i.test(text) ||
+    /rate limit/i.test(text)
+  );
+};
 
 export type ToolCallLogEntry = {
   tool: string;
@@ -80,6 +114,10 @@ const getAgentFailureMessage = (error: unknown): string => {
     return TOOL_FAILURE_MESSAGE;
   }
 
+  if (isRateLimitError(error)) {
+    return RATE_LIMIT_MESSAGE;
+  }
+
   return MODEL_FAILURE_MESSAGE;
 };
 
@@ -105,16 +143,37 @@ export const runShopMindAgent = async (input: {
     setCheckoutAllowed(input.session_id, false);
   }
 
-  let response: Awaited<ReturnType<typeof ai.generate>>;
+  let response: Awaited<ReturnType<typeof ai.generate>> | undefined;
 
   try {
-    response = await ai.generate({
-      system: buildSystemPrompt(input.session_id),
-      messages: history,
-      prompt: input.message,
-      tools: allTools,
-      maxTurns: MAX_TOOL_CALLS,
-    });
+    const maxAttempts = 4;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        response = await ai.generate({
+          system: buildSystemPrompt(input.session_id),
+          messages: history,
+          prompt: input.message,
+          tools: allTools,
+          maxTurns: MAX_TOOL_CALLS,
+        });
+        break;
+      } catch (error) {
+        const retryable = isRateLimitError(error) && attempt < maxAttempts;
+        if (retryable) {
+          const delayMs = Math.min(12_000, 1_600 * 2 ** (attempt - 1)) + Math.floor(Math.random() * 400);
+          console.warn(
+            `ShopMind: Gemini rate limit (429), tentativa ${attempt}/${maxAttempts - 1}, aguardando ${delayMs}ms`,
+          );
+          await sleep(delayMs);
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    if (!response) {
+      throw new Error("Resposta do modelo vazia após retries.");
+    }
   } catch (error) {
     const message = getAgentFailureMessage(error);
 

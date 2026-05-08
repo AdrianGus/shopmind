@@ -9,6 +9,7 @@ Agente de compras do desafio **Kobe — Shopping Agent**. Você manda texto em p
 - **Node.js** 24 (`>=24 <25` — projeto fixado no 24, vê `.nvmrc` e `package.json`)
 - **TypeScript** ESM
 - **Express** 5
+- **React** 19 + **Vite** 7 (UI em [`client/`](client/))
 - **Genkit** + **@genkit-ai/google-genai** (Gemini; default `gemini-2.5-flash` no `.env.example`)
 - **Zod** na API e nas tools
 - **dotenv**, **pnpm**, **tsx** no dev
@@ -51,26 +52,44 @@ Arquivo de referência: [`.env.example`](.env.example).
 
 ## Como rodar
 
+**API + UI (desenvolvimento)** — dois processos: Express na porta `PORT` (default `3000`) e **Vite** em `5173` (override com `VITE_DEV_PORT`). O navegador abre **`http://localhost:5173`**: chamadas para `/api` são encaminhadas ao backend (mesmo valor de `PORT` do `.env` na raiz).
+
 ```sh
 pnpm dev
 ```
 
-Build + produção local:
+Só a API (sem React):
 
 ```sh
-pnpm check    # typecheck, opcional
+pnpm dev:api
+```
+
+Só o Vite (precisa da API em outro terminal):
+
+```sh
+pnpm dev:web
+```
+
+Build + produção local (um único origin: API serve o `client/dist` em `/`):
+
+```sh
+pnpm check    # typecheck API + client, opcional
 pnpm build
 pnpm start
 ```
 
-Saída esperada: algo como `ShopMind API listening on http://localhost:3000`.
+Saída esperada: algo como `ShopMind API listening on http://localhost:3000` e, se existir build do client, `ShopMind UI available at http://localhost:3000/`.
 
 Scripts:
 
-- **`pnpm dev`** — `tsx watch`, recarrega ao editar
-- **`pnpm check`** — TypeScript sem emitir arquivos
-- **`pnpm build`** — gera `dist/`
+- **`pnpm dev`** — API + Vite em paralelo (`concurrently`)
+- **`pnpm dev:api`** — `tsx watch`, só o Express
+- **`pnpm dev:web`** — Vite no pacote `client/`
+- **`pnpm check`** — TypeScript da API e do client (sem emitir)
+- **`pnpm build`** — `build:web` (Vite → `client/dist`) e em seguida `build:api` (`dist/` do servidor)
 - **`pnpm start`** — `node dist/server.js`
+
+**Sessão no chat:** o React grava `session_id` em `localStorage` e reutiliza em todo `POST /api/agent`. O histórico que o modelo vê fica no **servidor** por essa sessão — recarregar a página mantém o mesmo id e o contexto (ex.: confirmação de pedido). **Nova sessão** gera outro id e zera só a lista local; carrinho/pedidos no mock seguem o id antigo no servidor.
 
 Teste rápido:
 
