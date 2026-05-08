@@ -50,3 +50,10 @@ Returns the service health status:
 ```
 
 `POST /api/agent` will be implemented in the next phase of the challenge.
+
+## Architecture Decisions
+
+The ecommerce operations are implemented as pure services before any Genkit
+tool wiring. Tools should validate and translate external input, call a service,
+and return the service result. This keeps catalog, cart, and order rules
+independent from the LLM layer.

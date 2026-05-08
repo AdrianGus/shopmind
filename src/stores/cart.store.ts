@@ -1,3 +1,5 @@
+import { roundCurrency } from "../utils/currency.js";
+
 export type CartItem = {
   productId: string;
   name: string;
@@ -22,7 +24,7 @@ export type AddCartItemInput = {
 const cartsBySessionId = new Map<string, Cart>();
 
 const calculateCartTotal = (items: CartItem[]): number =>
-  Number(items.reduce((total, item) => total + item.subtotal, 0).toFixed(2));
+  roundCurrency(items.reduce((total, item) => total + item.subtotal, 0));
 
 const createEmptyCart = (sessionId: string): Cart => ({
   sessionId,
@@ -46,11 +48,11 @@ export const getCart = (sessionId: string): Cart => {
 export const addCartItem = (sessionId: string, item: AddCartItemInput): Cart => {
   const cart = getCart(sessionId);
   const existingItem = cart.items.find((cartItem) => cartItem.productId === item.productId);
-  const itemSubtotal = Number((item.quantity * item.unitPrice).toFixed(2));
+  const itemSubtotal = roundCurrency(item.quantity * item.unitPrice);
 
   if (existingItem) {
     existingItem.quantity += item.quantity;
-    existingItem.subtotal = Number((existingItem.quantity * existingItem.unitPrice).toFixed(2));
+    existingItem.subtotal = roundCurrency(existingItem.quantity * existingItem.unitPrice);
   } else {
     cart.items.push({
       productId: item.productId,

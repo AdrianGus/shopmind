@@ -1,4 +1,5 @@
 import type { Product } from "../mocks/products.mock.js";
+import { getCurrentIsoTimestamp } from "../utils/date.js";
 
 export type SessionMessageRole = "user" | "assistant";
 
@@ -66,7 +67,7 @@ export const addSessionMessage = (
   const session = getSession(sessionId);
   session.messages.push({
     ...message,
-    createdAt: new Date().toISOString(),
+    createdAt: getCurrentIsoTimestamp(),
   });
 
   return session;
