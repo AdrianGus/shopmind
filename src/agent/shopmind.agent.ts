@@ -7,6 +7,8 @@ import type { SessionMessage } from "../stores/session.store.js";
 import { isExplicitConfirmation } from "../utils/confirmation.js";
 import { buildSystemPrompt } from "./system-prompt.js";
 
+const MAX_TOOL_CALLS = 5;
+
 export type ToolCallLogEntry = {
   tool: string;
   args: Record<string, unknown>;
@@ -16,6 +18,7 @@ export type ToolCallLogEntry = {
 export type AgentResult = {
   message: string;
   tool_calls_log: ToolCallLogEntry[];
+  tool_calls_count: number;
 };
 
 const toGenkitMessages = (messages: SessionMessage[]): MessageData[] =>
@@ -72,12 +75,23 @@ export const runShopMindAgent = async (input: {
     messages: history,
     prompt: input.message,
     tools: allTools,
+    maxTurns: MAX_TOOL_CALLS,
   });
 
-  const tool_calls_log = extractToolCallsLog(response.messages);
+  let tool_calls_log = extractToolCallsLog(response.messages);
+
+  let message =
+    response.text ||
+    "Desculpe, não consegui completar todas as etapas. Pode reformular seu pedido?";
+
+  if (tool_calls_log.length > MAX_TOOL_CALLS) {
+    tool_calls_log = tool_calls_log.slice(0, MAX_TOOL_CALLS);
+    message =
+      "Atingi o limite de operações por mensagem. Pode dividir seu pedido em etapas menores?";
+  }
 
   addSessionMessage(input.session_id, { role: "user", content: input.message });
-  addSessionMessage(input.session_id, { role: "assistant", content: response.text });
+  addSessionMessage(input.session_id, { role: "assistant", content: message });
 
-  return { message: response.text, tool_calls_log };
+  return { message, tool_calls_log, tool_calls_count: tool_calls_log.length };
 };
