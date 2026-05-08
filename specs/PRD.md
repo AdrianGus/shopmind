@@ -4,7 +4,7 @@
 
 O ShopMind é um agente de e-commerce exposto via API que recebe mensagens em linguagem natural, decide quais ferramentas deve chamar, encadeia múltiplas chamadas quando necessário e retorna uma resposta coerente ao usuário.
 
-O projeto será implementado em JavaScript ESM, Node.js >= 18, Express e Genkit SDK.
+O projeto será implementado em TypeScript ESM, Node.js >=24 <25, Express e Genkit SDK.
 
 O foco principal do desafio não é criar uma lógica real de e-commerce, banco de dados ou checkout completo, mas demonstrar a capacidade do agente de orquestrar corretamente tools, tomar decisões com base nos resultados retornados, respeitar guardrails e documentar decisões técnicas.
 
@@ -87,8 +87,8 @@ Uma interface de chat simples pode ser criada, mas é opcional.
 
 ### 4.1 Obrigatória
 
-- Node.js >= 18
-- JavaScript ESM
+- Node.js >=24 <25
+- TypeScript ESM
 - Express
 - Genkit SDK
 
@@ -96,7 +96,16 @@ Uma interface de chat simples pode ser criada, mas é opcional.
 
 - Zod para schemas das tools
 - Dotenv para variáveis de ambiente
-- Nodemon ou Node watch para desenvolvimento local
+- tsx watch para desenvolvimento local
+
+### 4.3 Scripts do projeto
+
+```sh
+pnpm dev
+pnpm check
+pnpm build
+pnpm start
+```
 
 ---
 
@@ -104,56 +113,60 @@ Uma interface de chat simples pode ser criada, mas é opcional.
 
 ```txt
 src/
-  server.js
+  server.ts
 
   routes/
-    agent.routes.js
+    agent.routes.ts
 
   controllers/
-    agent.controller.js
+    agent.controller.ts
 
   agent/
-    shopmind.agent.js
-    system-prompt.js
+    shopmind.agent.ts
+    system-prompt.ts
 
   ai/
-    genkit.js
+    genkit.ts
     tools/
-      buscar-catalogo.tool.js
-      ver-produto.tool.js
-      verificar-carrinho.tool.js
-      adicionar-ao-carrinho.tool.js
-      fechar-pedido.tool.js
-      consultar-pedido.tool.js
-      index.js
+      search-catalog.tool.ts
+      get-product-details.tool.ts
+      get-cart.tool.ts
+      add-to-cart.tool.ts
+      checkout.tool.ts
+      get-order-status.tool.ts
+      index.ts
 
   services/
-    catalog.service.js
-    cart.service.js
-    order.service.js
+    catalog.service.ts
+    cart.service.ts
+    order.service.ts
 
   stores/
-    session.store.js
-    cart.store.js
+    session.store.ts
+    cart.store.ts
 
   mocks/
-    products.mock.js
-    orders.mock.js
+    products.mock.ts
+    orders.mock.ts
 
   utils/
-    confirmation.js
-    errors.js
+    text.ts
+    errors.ts
 ```
+
+Observação: os arquivos fonte são `.ts`; por usar TypeScript ESM com `moduleResolution: "NodeNext"`, os imports internos apontam para a extensão `.js` que existirá após o build.
 
 ---
 
 ## 6. Entidades principais
 
+A implementação deve representar estes formatos com `type` ou `interface` TypeScript, mantendo a serialização da API em JSON.
+
 ### 6.1 Product
 
 Representa um produto do catálogo.
 
-```js
+```ts
 {
   id: "tenis-001",
   nome: "Tênis Runner Pro",
@@ -187,7 +200,7 @@ Representa um produto do catálogo.
 
 Representa o carrinho vinculado a uma sessão.
 
-```js
+```ts
 {
   session_id: "user-123",
   itens: [
@@ -209,7 +222,7 @@ Representa o carrinho vinculado a uma sessão.
 
 Representa um pedido mockado ou gerado após checkout.
 
-```js
+```ts
 {
   pedido_id: "PED-2891",
   status: "em separação",
@@ -233,7 +246,7 @@ Representa um pedido mockado ou gerado após checkout.
 
 Representa o estado mínimo de conversa por usuário.
 
-```js
+```ts
 {
   session_id: "user-123",
   messages: [],
@@ -334,7 +347,7 @@ Buscar produtos por termo de pesquisa, categoria opcional e preço máximo opcio
 
 ### Input
 
-```js
+```ts
 {
   query: "string",
   categoria: "string?",
@@ -344,7 +357,7 @@ Buscar produtos por termo de pesquisa, categoria opcional e preço máximo opcio
 
 ### Output
 
-```js
+```ts
 [
   {
     id: "string",
@@ -380,7 +393,7 @@ Retornar detalhes completos de um produto específico.
 
 ### Input
 
-```js
+```ts
 {
   produto_id: "string";
 }
@@ -388,7 +401,7 @@ Retornar detalhes completos de um produto específico.
 
 ### Output
 
-```js
+```ts
 {
   id: "string",
   nome: "string",
@@ -422,7 +435,7 @@ Retornar os itens atuais do carrinho de uma sessão.
 
 ### Input
 
-```js
+```ts
 {
   session_id: "string";
 }
@@ -430,7 +443,7 @@ Retornar os itens atuais do carrinho de uma sessão.
 
 ### Output
 
-```js
+```ts
 {
   itens: [],
   total: "number"
@@ -458,7 +471,7 @@ Adicionar produto ao carrinho da sessão.
 
 ### Input
 
-```js
+```ts
 {
   produto_id: "string",
   quantidade: "number",
@@ -468,7 +481,7 @@ Adicionar produto ao carrinho da sessão.
 
 ### Output
 
-```js
+```ts
 {
   success: true,
   message: "Produto adicionado ao carrinho.",
@@ -504,7 +517,7 @@ Finalizar a compra a partir do carrinho ativo.
 
 ### Input
 
-```js
+```ts
 {
   session_id: "string",
   confirmado: "boolean"
@@ -513,7 +526,7 @@ Finalizar a compra a partir do carrinho ativo.
 
 ### Output
 
-```js
+```ts
 {
   success: true,
   pedido_id: "PED-0001",
@@ -548,7 +561,7 @@ Consultar status e histórico de um pedido existente.
 
 ### Input
 
-```js
+```ts
 {
   pedido_id: "string";
 }
@@ -556,7 +569,7 @@ Consultar status e histórico de um pedido existente.
 
 ### Output
 
-```js
+```ts
 {
   pedido_id: "string",
   status: "confirmado | em separação | enviado | entregue",
@@ -686,7 +699,7 @@ O sistema deve manter contexto mínimo por `session_id`.
 
 ### Dados armazenados
 
-```js
+```ts
 {
   session_id: "user-123",
   messages: [],
@@ -716,7 +729,7 @@ A resposta da API deve incluir um campo `tool_calls_log`.
 
 ### Formato
 
-```js
+```ts
 [
   {
     tool: "buscar_catalogo",
@@ -1026,7 +1039,7 @@ Checklist:
 
 ```txt
 [ ] Confirmar package.json com "type": "module"
-[ ] Criar src/server.js
+[ ] Criar src/server.ts
 [ ] Configurar express.json()
 [ ] Criar GET /health
 [ ] Configurar PORT via env
@@ -1063,10 +1076,10 @@ feat: add mock ecommerce data and in-memory stores
 Checklist:
 
 ```txt
-[ ] Criar products.mock.js
-[ ] Criar orders.mock.js
-[ ] Criar cart.store.js
-[ ] Criar session.store.js
+[ ] Criar products.mock.ts
+[ ] Criar orders.mock.ts
+[ ] Criar cart.store.ts
+[ ] Criar session.store.ts
 [ ] Incluir pedido PED-2891
 [ ] Incluir produtos com e sem estoque
 ```
@@ -1122,7 +1135,7 @@ feat: add ShopMind system prompt and behavior rules
 Checklist:
 
 ```txt
-[ ] Criar system-prompt.js
+[ ] Criar system-prompt.ts
 [ ] Definir persona
 [ ] Definir restrições
 [ ] Proibir invenção de dados
@@ -1141,6 +1154,7 @@ Checklist:
 
 ```txt
 [ ] Criar runShopMindAgent
+[ ] Criar src/agent/shopmind.agent.ts
 [ ] Conectar rota ao agente
 [ ] Passar tools ao modelo
 [ ] Retornar message final
