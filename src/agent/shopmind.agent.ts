@@ -2,8 +2,9 @@ import type { MessageData } from "genkit";
 
 import { ai } from "../ai/genkit.js";
 import { allTools } from "../ai/tools/index.js";
-import { getSession, addSessionMessage } from "../stores/session.store.js";
+import { getSession, addSessionMessage, setCheckoutAllowed } from "../stores/session.store.js";
 import type { SessionMessage } from "../stores/session.store.js";
+import { isExplicitConfirmation } from "../utils/confirmation.js";
 import { buildSystemPrompt } from "./system-prompt.js";
 
 export type ToolCallLogEntry = {
@@ -59,6 +60,12 @@ export const runShopMindAgent = async (input: {
 }): Promise<AgentResult> => {
   const session = getSession(input.session_id);
   const history = toGenkitMessages(session.messages);
+
+  if (session.pendingCheckoutConfirmation && isExplicitConfirmation(input.message)) {
+    setCheckoutAllowed(input.session_id, true);
+  } else {
+    setCheckoutAllowed(input.session_id, false);
+  }
 
   const response = await ai.generate({
     system: buildSystemPrompt(input.session_id),

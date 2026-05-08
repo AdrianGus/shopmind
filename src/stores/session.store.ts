@@ -16,6 +16,7 @@ export type Session = {
   messages: SessionMessage[];
   lastCatalogResults: CatalogResult[];
   pendingCheckoutConfirmation: boolean;
+  checkoutAllowed: boolean;
 };
 
 const sessionsById = new Map<string, Session>();
@@ -25,6 +26,7 @@ const createSession = (sessionId: string): Session => ({
   messages: [],
   lastCatalogResults: [],
   pendingCheckoutConfirmation: false,
+  checkoutAllowed: false,
 });
 
 export const getSession = (sessionId: string): Session => {
@@ -56,6 +58,16 @@ export const setPendingCheckoutConfirmation = (
 ): Session => {
   const session = getSession(sessionId);
   session.pendingCheckoutConfirmation = value;
+
+  return session;
+};
+
+export const setCheckoutAllowed = (
+  sessionId: string,
+  value: boolean,
+): Session => {
+  const session = getSession(sessionId);
+  session.checkoutAllowed = value;
 
   return session;
 };
