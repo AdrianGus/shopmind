@@ -7,7 +7,7 @@ import { runToolSafely } from "./tool-result.js";
 
 const addToCartInputSchema = z.object({
   product_id: z.string().trim().min(1),
-  quantity: z.number(),
+  quantity: z.number().int().positive(),
   session_id: z.string().trim().min(1),
 });
 

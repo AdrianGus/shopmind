@@ -2,6 +2,7 @@ import type { RequestHandler } from "express";
 import { z } from "zod";
 
 import { runShopMindAgent } from "../agent/shopmind.agent.js";
+import type { AgentResult } from "../agent/shopmind.agent.js";
 
 const agentRequestSchema = z.object({
   message: z.string().trim().min(1),
@@ -41,7 +42,16 @@ export const handleAgentRequest: RequestHandler = async (req, res) => {
     return;
   }
 
-  const result = await runShopMindAgent(validation.data);
+  try {
+    const result = await runShopMindAgent(validation.data);
+    res.status(200).json(result);
+  } catch (error) {
+    console.error("Agent controller failed", error);
 
-  res.status(200).json(result);
+    res.status(200).json({
+      message: "Desculpe, tive um problema ao processar sua mensagem. Pode tentar novamente?",
+      tool_calls_log: [],
+      tool_calls_count: 0,
+    } satisfies AgentResult);
+  }
 };

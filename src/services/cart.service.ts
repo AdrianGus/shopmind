@@ -1,10 +1,10 @@
-import { productsMock } from "../mocks/products.mock.js";
 import {
   addCartItem,
   getCart as getStoredCart,
 } from "../stores/cart.store.js";
 import type { Cart } from "../stores/cart.store.js";
-import { ServiceError } from "../utils/errors.js";
+import { serviceError } from "../utils/messages.js";
+import { findProductById } from "../utils/product-lookup.js";
 
 export type AddToCartInput = {
   productId: string;
@@ -20,29 +20,13 @@ export const addToCart = ({
   sessionId,
 }: AddToCartInput): Cart => {
   if (!Number.isInteger(quantity) || quantity <= 0) {
-    throw new ServiceError(
-      "Informe uma quantidade válida para adicionar ao carrinho.",
-      400,
-      "INVALID_QUANTITY",
-    );
+    throw serviceError("INVALID_QUANTITY", 400);
   }
 
-  const product = productsMock.find((item) => item.id === productId);
-
-  if (!product) {
-    throw new ServiceError(
-      "Não encontrei esse produto no catálogo.",
-      404,
-      "PRODUCT_NOT_FOUND",
-    );
-  }
+  const product = findProductById(productId);
 
   if (product.stock <= 0) {
-    throw new ServiceError(
-      "Esse produto está sem estoque, então não adicionei ao carrinho.",
-      409,
-      "OUT_OF_STOCK",
-    );
+    throw serviceError("OUT_OF_STOCK", 409);
   }
 
   const cart = getStoredCart(sessionId);
@@ -50,11 +34,7 @@ export const addToCart = ({
   const quantityInCart = existingItem?.quantity ?? 0;
 
   if (quantityInCart + quantity > product.stock) {
-    throw new ServiceError(
-      "Não há estoque suficiente para essa quantidade, então não adicionei ao carrinho.",
-      409,
-      "INSUFFICIENT_STOCK",
-    );
+    throw serviceError("INSUFFICIENT_STOCK", 409);
   }
 
   return addCartItem(sessionId, {

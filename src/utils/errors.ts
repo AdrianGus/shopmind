@@ -4,10 +4,12 @@ export type ServiceErrorCode =
   | "CHECKOUT_CONFIRMATION_REQUIRED"
   | "INSUFFICIENT_STOCK"
   | "INVALID_QUANTITY"
+  | "INVALID_REFERENCE"
   | "ORDER_NOT_FOUND"
+  | "OUT_OF_STOCK"
   | "PRODUCT_NOT_FOUND"
-  | "SERVICE_ERROR"
-  | "OUT_OF_STOCK";
+  | "REFERENCE_NOT_FOUND"
+  | "SERVICE_ERROR";
 
 export class ServiceError extends Error {
   constructor(

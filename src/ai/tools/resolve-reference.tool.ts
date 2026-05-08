@@ -2,6 +2,7 @@ import type { ToolAction } from "genkit";
 import { z } from "genkit";
 
 import { getSession } from "../../stores/session.store.js";
+import { ServiceError } from "../../utils/errors.js";
 import { ai } from "../genkit.js";
 import { runToolSafely } from "./tool-result.js";
 
@@ -22,13 +23,19 @@ export const resolveReferenceTool: ToolAction = ai.defineTool(
       const { lastCatalogResults } = getSession(sessionId);
 
       if (lastCatalogResults.length === 0) {
-        return { error: "Nenhum resultado de busca recente encontrado nesta sessão." };
+        throw new ServiceError(
+          "Nenhum resultado de busca recente encontrado nesta sessão.",
+          404,
+          "REFERENCE_NOT_FOUND",
+        );
       }
 
       if (position > lastCatalogResults.length) {
-        return {
-          error: `Posição inválida. A última busca retornou ${lastCatalogResults.length} resultado(s).`,
-        };
+        throw new ServiceError(
+          `Posição inválida. A última busca retornou ${lastCatalogResults.length} resultado(s).`,
+          400,
+          "INVALID_REFERENCE",
+        );
       }
 
       return lastCatalogResults[position - 1];

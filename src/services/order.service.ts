@@ -8,7 +8,7 @@ import {
 import { setPendingCheckoutConfirmation } from "../stores/session.store.js";
 import { roundCurrency } from "../utils/currency.js";
 import { getCurrentDateString } from "../utils/date.js";
-import { ServiceError } from "../utils/errors.js";
+import { serviceError } from "../utils/messages.js";
 
 export type CheckoutInput = {
   sessionId: string;
@@ -40,12 +40,12 @@ const getEstimatedDelivery = (items: OrderItem[]): string => {
   const firstItem = items[0];
 
   if (!firstItem) {
-    return "Delivery estimate unavailable";
+    return "Prazo de entrega indisponível";
   }
 
   const product = productsMock.find((item) => item.id === firstItem.productId);
 
-  return product?.estimatedDelivery ?? "Delivery estimate unavailable";
+  return product?.estimatedDelivery ?? "Prazo de entrega indisponível";
 };
 
 export const checkout = ({
@@ -53,21 +53,13 @@ export const checkout = ({
   confirmed,
 }: CheckoutInput): CheckoutResult => {
   if (!confirmed) {
-    throw new ServiceError(
-      "Confirme o fechamento do pedido antes de concluir a compra.",
-      400,
-      "CHECKOUT_CONFIRMATION_REQUIRED",
-    );
+    throw serviceError("CHECKOUT_CONFIRMATION_REQUIRED", 400);
   }
 
   const cart = getStoredCart(sessionId);
 
   if (cart.items.length === 0) {
-    throw new ServiceError(
-      "Seu carrinho está vazio. Quer que eu te ajude a encontrar algum produto?",
-      400,
-      "CART_EMPTY",
-    );
+    throw serviceError("CART_EMPTY", 400);
   }
 
   const items = cart.items.map<OrderItem>((item) => ({
@@ -85,7 +77,7 @@ export const checkout = ({
     history: [
       {
         date: today,
-        event: "Order confirmed",
+        event: "Pedido confirmado",
       },
     ],
     items,
@@ -115,11 +107,7 @@ export const getOrderStatus = (orderId: string): Order => {
   const mockOrder = ordersMock.find((order) => order.orderId === orderId);
 
   if (!mockOrder) {
-    throw new ServiceError(
-      "Não encontrei o pedido informado. Confira se o código está correto.",
-      404,
-      "ORDER_NOT_FOUND",
-    );
+    throw serviceError("ORDER_NOT_FOUND", 404);
   }
 
   return mockOrder;
