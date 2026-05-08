@@ -2,6 +2,7 @@ import "dotenv/config";
 
 import express from "express";
 import type { ErrorRequestHandler, RequestHandler } from "express";
+import { agentRouter } from "./routes/agent.routes.js";
 
 const app = express();
 const port = Number.parseInt(process.env.PORT ?? "3000", 10);
@@ -15,6 +16,8 @@ app.get("/health", (_req, res) => {
     environment: process.env.NODE_ENV ?? "development",
   });
 });
+
+app.use("/api/agent", agentRouter);
 
 const notFoundHandler: RequestHandler = (_req, res) => {
   res.status(404).json({
