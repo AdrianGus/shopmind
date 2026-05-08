@@ -1,0 +1,37 @@
+{
+  "name": "shopmind",
+  "version": "0.1.0",
+  "description": "ShopMind shopping agent technical challenge setup.",
+  "type": "module",
+  "private": true,
+  "main": "dist/server.js",
+  "packageManager": "pnpm@10.29.1",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "check": "tsc --noEmit"
+  },
+  "keywords": [
+    "shopmind",
+    "genkit",
+    "express"
+  ],
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@genkit-ai/google-genai": "^1.33.0",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "genkit": "^1.33.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^24.12.3",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3"
+  }
+}
