@@ -1,50 +1,109 @@
 # ShopMind
 
-Kobe Technical Challenge — Shopping Agent.
+Agente de compras do desafio **Kobe — Shopping Agent**. Você manda texto em português; a API chama o Gemini via **Genkit**, deixa o modelo escolher **function calling**, e devolve a resposta falada + um **`tool_calls_log`** com tudo que foi executado naquele turno. O objetivo é mostrar orquestração e guardrails — não um e-commerce com banco e checkout de verdade.
 
-## Runtime
+---
 
-This project is pinned to Node.js 24 through `.nvmrc` and `package.json`:
+## Stack
+
+- **Node.js** 24 (`>=24 <25` — projeto fixado no 24, vê `.nvmrc` e `package.json`)
+- **TypeScript** ESM
+- **Express** 5
+- **Genkit** + **@genkit-ai/google-genai** (Gemini; default `gemini-2.5-flash` no `.env.example`)
+- **Zod** na API e nas tools
+- **dotenv**, **pnpm**, **tsx** no dev
+
+---
+
+## O que você precisa antes
+
+1. **Node 24** instalado (ex.: `nvm use 24` — `node --version` deve ser `v24.x`). Com Node 25+ o pnpm avisa `Unsupported engine`.
+2. **pnpm** — o repo tem `pnpm-lock.yaml`; o fluxo suportado é com pnpm. Um checklist externo pode citar `npm install`, mas aqui o setup reproduzível é **`pnpm install`**.
+3. **`GEMINI_API_KEY`** da Google.
+
+---
+
+## Como instalar
 
 ```sh
+cd shopmind
 nvm use 24
-node --version
-```
-
-`node --version` should print `v24.x`. If you run `pnpm install` with Node.js
-`v25.6.0`, pnpm warns with `Unsupported engine` because the project explicitly
-supports `>=24 <25`.
-
-## Setup
-
-```sh
 pnpm install
+cp .env.example .env
 ```
 
-If an external checklist asks for **`npm install`**, prefer **`pnpm install`**
-instead: this repository ships a **`pnpm-lock.yaml`** and documents the pnpm
-workflow. Plain `npm install` does not use that lockfile and is not the
-supported reproducible setup here.
+Abre o `.env` e coloca a chave.
 
-## Scripts
+---
+
+## Variáveis do `.env`
+
+| Variável         | Função                                   |
+| ---------------- | ---------------------------------------- |
+| `PORT`           | Porta (default `3000`)                   |
+| `NODE_ENV`       | `development` / `production`             |
+| `GEMINI_API_KEY` | Chave da API — **necessária** pro agente |
+| `GENKIT_MODEL`   | Modelo Gemini (ex.: `gemini-2.5-flash`)  |
+
+Arquivo de referência: [`.env.example`](.env.example).
+
+---
+
+## Como rodar
 
 ```sh
 pnpm dev
-pnpm check
+```
+
+Build + produção local:
+
+```sh
+pnpm check    # typecheck, opcional
 pnpm build
 pnpm start
 ```
 
-- `pnpm dev` runs the TypeScript server with watch mode.
-- `pnpm check` type-checks the project without emitting files.
-- `pnpm build` compiles TypeScript ESM into `dist/`.
-- `pnpm start` runs the compiled server from `dist/server.js`.
+Saída esperada: algo como `ShopMind API listening on http://localhost:3000`.
+
+Scripts:
+
+- **`pnpm dev`** — `tsx watch`, recarrega ao editar
+- **`pnpm check`** — TypeScript sem emitir arquivos
+- **`pnpm build`** — gera `dist/`
+- **`pnpm start`** — `node dist/server.js`
+
+Teste rápido:
+
+```sh
+curl -s http://localhost:3000/health
+```
+
+---
+
+## Como isso se encaixa (fluxo alto nível)
+
+Tu posta `message` + `session_id`. O Express valida → `runShopMindAgent` monta o histórico da sessão → **Genkit** roda `ai.generate` com tools e **`maxTurns: 5`**. Cada “volta” pode ser uma ou mais tools; o modelo usa o retorno pra decidir o próximo passo. As tools chamam **services**; services leem/gravam **stores em memória** e **mocks** de catálogo/pedido.
+
+```mermaid
+flowchart LR
+    user[Usuario] --> api["POST /api/agent"]
+    api --> controller[agent.controller]
+    controller --> agent[shopmind.agent]
+    agent --> genkit["ai.generate maxTurns 5"]
+    genkit -->|tool calls| tools[Genkit tools]
+    tools --> services[Services]
+    services --> stores["Stores e mocks em memoria"]
+    genkit -->|"text + messages"| agent
+    agent --> response["message + tool_calls_log"]
+```
+
+---
 
 ## API
 
-### GET /health
+### `GET /health`
 
-Returns the service health status:
+Confirma que o processo subiu.
 
 ```json
 {
@@ -54,19 +113,9 @@ Returns the service health status:
 }
 ```
 
-### POST /api/agent
+### `POST /api/agent`
 
-Receives a user message and returns the agent's response with a log of every
-tool call executed during the turn.
-
-Invalid payloads (missing/empty fields) receive **400** with `status: "error"`.
-If the JSON is valid but **`GEMINI_API_KEY`** is missing, the network fails, or
-Gemini/Genkit errors for another infrastructure reason, the handler may still
-respond **200** with a short fallback `message`, an **empty** `tool_calls_log`,
-and `tool_calls_count: 0`. Treat a non-empty, sensible `tool_calls_log` as the
-signal that the agent turn actually exercised tools successfully.
-
-**Request:**
+**Body (JSON):**
 
 ```json
 {
@@ -75,89 +124,190 @@ signal that the agent turn actually exercised tools successfully.
 }
 ```
 
-**Response:**
+`message` e `session_id` são obrigatórios, strings não vazias. Se faltar algo, **400** com `status: "error"` e `message` tipo `message and session_id are required`, `message is required`, etc.
+
+**Sucesso (200):**
 
 ```json
 {
-  "message": "Encontrei uma opção para você: ...",
+  "message": "Encontrei algumas opções...",
   "tool_calls_log": [
     {
       "tool": "buscar_catalogo",
-      "args": { "query": "tênis de corrida", "max_price": 400, "session_id": "abc-123" },
-      "result": [{ "id": "tenis-runner-pro", "name": "Tênis Runner Pro", "price": 349.9, "stock": 8, "shortDescription": "..." }]
+      "args": {
+        "query": "tênis de corrida",
+        "max_price": 400,
+        "session_id": "abc-123"
+      },
+      "result": [
+        {
+          "id": "tenis-runner-pro",
+          "name": "Tênis Runner Pro",
+          "price": 349.9,
+          "stock": 8,
+          "shortDescription": "..."
+        }
+      ]
     }
   ],
   "tool_calls_count": 1
 }
 ```
 
-## Tools
+**Pitfall útil:** sem `GEMINI_API_KEY`, erro de rede ou falha do modelo, o handler às vezes ainda responde **200** com mensagem genérica, **`tool_calls_log` vazio** e `tool_calls_count: 0`. Pra saber se o turno “funcionou de verdade”, confere se o log tem as tools esperadas.
 
-| Tool | Description |
-|------|-------------|
-| `buscar_catalogo` | Search products by query, category, and/or max price |
-| `resolver_referencia` | Resolve a positional reference ("segundo item") from the last search |
-| `ver_produto` | Return full product details (specs, reviews, stock by SKU, delivery) |
-| `verificar_carrinho` | Return the current cart with items, subtotals, and total |
-| `adicionar_ao_carrinho` | Add a product to the cart after validating stock |
-| `fechar_pedido` | Finalize an order — requires explicit user confirmation |
-| `consultar_pedido` | Look up an existing order's status and history |
+---
 
-## Architecture Decisions
+## Tools (lista completa)
 
-### Service / tool separation
+| Tool                    | O que faz                                                                                    |
+| ----------------------- | -------------------------------------------------------------------------------------------- |
+| `buscar_catalogo`       | Busca por texto; opcional `category` e `max_price`. Atualiza `lastCatalogResults` da sessão. |
+| `resolver_referencia`   | Resolve “primeiro”, “segundo item” pela posição 1-based na última busca.                     |
+| `ver_produto`           | Detalhes completos (specs, reviews, estoque por SKU, prazo).                                 |
+| `verificar_carrinho`    | Itens + totais; marca estado de fluxo de checkout na sessão.                                 |
+| `adicionar_ao_carrinho` | Adiciona com validação de estoque.                                                           |
+| `fechar_pedido`         | Mock de fechamento; **só** se o código liberou checkout após confirmação explícita.          |
+| `consultar_pedido`      | Status e histórico de pedidos mock (ex.: `PED-2891`).                                        |
 
-The ecommerce operations are implemented as pure services before any Genkit
-tool wiring. Tools validate and translate external input, call a service,
-and return the service result. This keeps catalog, cart, and order rules
-independent from the LLM layer.
+Implementação em [`src/ai/tools/`](src/ai/tools/).
 
-### Function calling loop
+---
 
-The agent uses Genkit's `ai.generate` with `maxTurns: 5`, which lets the LLM
-chain up to 5 rounds of tool calls in a single request. Each round can invoke
-one or more tools, and the LLM uses tool results to decide the next action.
+## Loop de function calling
 
-### Dual checkout guardrail
+Um request HTTP pode disparar até **cinco rodadas** de tool calling (`maxTurns: 5` no [`src/agent/shopmind.agent.ts`](src/agent/shopmind.agent.ts)). Exemplo típico de fluxo encadeado: `resolver_referencia` → `ver_produto` → `adicionar_ao_carrinho`, tudo no mesmo `tool_calls_log`.
 
-Closing an order requires two independent gates:
+Se o limite estourar ou der erro de iteração, vem mensagem pedindo pra reformular; o log pode ser **truncado** pra no máximo 5 entradas.
 
-1. **System prompt rule** — instructs the LLM to call `verificar_carrinho`
-   first, show a summary, and only call `fechar_pedido` after explicit
-   confirmation keywords ("confirmo", "pode fechar", "pode finalizar").
-2. **Code-level session flag** — `verificar_carrinho` sets
-   `pendingCheckoutConfirmation = true`; the agent runner checks if the next
-   user message passes `isExplicitConfirmation()` before setting
-   `checkoutAllowed = true`. The `fechar_pedido` tool throws 403 if this flag
-   is false.
+---
 
-This prevents checkout even if the LLM hallucinates a premature `fechar_pedido`
-call.
+## `tool_calls_log`
 
-### Session-based positional references
+Cada item traz **`tool`**, **`args`** e **`result`**. Serve pra auditar o que foi executado **sem vazar raciocínio interno** do modelo — só requests/responses de ferramenta. Como o texto natural varia entre runs, o log é o melhor artefato pra avaliar comportamento.
 
-`buscar_catalogo` stores results in `session.lastCatalogResults`.
-`resolver_referencia` looks up by 1-based index, so "segundo item" reliably
-resolves to the correct product regardless of LLM interpretation.
+---
 
-## Assumptions and Limitations
+## Estado por `session_id`
 
-- **In-memory stores** — all session, cart, and order state is lost on server
-  restart. Adequate for demonstration; not production-ready.
-- **Mock data** — the catalog and pre-existing orders are hardcoded. The
-  evaluation focuses on how the agent orchestrates tools, not on data layer
-  complexity.
-- **LLM non-determinism** — the agent's text responses vary between runs. The
-  `tool_calls_log` field is the reliable artifact for validating correct
-  behavior.
-- **No authentication** — `session_id` is trusted as-is; there is no auth
-  layer.
-- **Max 5 tool-call rounds per request** — prevents infinite loops but limits
-  very long chains.
-- **Single-server, single-process** — no concurrent session safety guarantees.
+Tudo é keyed por string opaca. Ver [`src/stores/session.store.ts`](src/stores/session.store.ts):
 
-## Tested Scenarios
+- **`messages`** — histórico curto pra contexto na próxima rodada do modelo
+- **`lastCatalogResults`** — última lista de busca (referências posicionais)
+- **`pendingCheckoutConfirmation`** — fluxo “vi o carrinho, falta confirmar?”
+- **`checkoutAllowed`** — liberado só quando [`isExplicitConfirmation`](src/utils/confirmation.ts) bate na mensagem do usuário **e** já havia confirmação pendente; caso contrário [`fechar_pedido`](src/ai/tools/checkout.tool.ts) barra
 
-The four mandatory scenarios from the challenge are documented with curl
-commands, expected tool call sequences, and acceptance checklists in
-[`docs/manual-tests.md`](docs/manual-tests.md).
+Não há login: quem envia o `session_id` “é dono” daquele estado em memória.
+
+---
+
+## Guardrail de checkout (duas camadas)
+
+1. **Prompt** — [`src/agent/system-prompt.ts`](src/agent/system-prompt.ts): antes de fechar, `verificar_carrinho`, resumo, só então pedir confirmação explícita; “ok” e “beleza” não contam.
+
+2. **Código** — [`verificar_carrinho`](src/ai/tools/get-cart.tool.ts) ajusta `pendingCheckoutConfirmation`. No começo de cada turno o agente só liga **`checkoutAllowed`** se a nova mensagem passar **`isExplicitConfirmation`** (tem que conter algo como **`confirmo`**, **`pode fechar`** ou **`pode finalizar`**, sem cheiro de negação tipo “não”) **e** a sessão estiver em modo de espera de checkout. **`fechar_pedido`** verifica `checkoutAllowed`; senão erro controlado (`CHECKOUT_BLOCKED`).
+
+Ou seja: mesmo o modelo alucinando `fechar_pedido`, o servidor pode travar na camada certa.
+
+---
+
+## Como testar (4 cenários do desafio)
+
+Define a base (troca porta se mudou `PORT`):
+
+```sh
+BASE=http://localhost:3000
+```
+
+Precisa ter **`jq`** só se quiser formatar JSON; pode tirar o `| jq`.
+
+### 1) Busca simples
+
+Texto típico: _“Quero comprar um tênis de corrida até R$ 400”_  
+Esperado no log: em geral **só** `buscar_catalogo`.
+
+```sh
+curl -s -X POST "$BASE/api/agent" \
+  -H "Content-Type: application/json" \
+  -d '{"message":"Quero comprar um tênis de corrida até R$ 400","session_id":"cen1-busca"}' | jq
+```
+
+### 2) Fluxo encadeado
+
+Primeiro popula resultados na mesma sessão; depois pede detalhe + carrinho.
+
+```sh
+curl -s -X POST "$BASE/api/agent" \
+  -H "Content-Type: application/json" \
+  -d '{"message":"Quero um tênis de corrida até 600 reais","session_id":"cen2-chain"}' | jq
+
+curl -s -X POST "$BASE/api/agent" \
+  -H "Content-Type: application/json" \
+  -d '{"message":"Me mostra mais detalhes do segundo item e, se estiver disponível, já coloca no meu carrinho","session_id":"cen2-chain"}' | jq
+```
+
+Ordem esperada na prática: `resolver_referencia` → `ver_produto` → `adicionar_ao_carrinho` (se tiver estoque).
+
+### 3) Checkout só depois de confirmar
+
+Carrinho precisa ter itens (usa o cenário 2 antes ou monta seus próprios passos).
+
+Turno A — “Fecha o pedido pra mim”: espera **`verificar_carrinho`**, sem fechar.
+
+```sh
+curl -s -X POST "$BASE/api/agent" \
+  -H "Content-Type: application/json" \
+  -d '{"message":"Fecha o pedido pra mim","session_id":"cen3-checkout"}' | jq
+```
+
+Turno B — confirmação explícita: espera **`fechar_pedido`**.
+
+```sh
+curl -s -X POST "$BASE/api/agent" \
+  -H "Content-Type: application/json" \
+  -d '{"message":"Sim, confirmo","session_id":"cen3-checkout"}' | jq
+```
+
+### 4) Consulta de pedido
+
+Pedido **`PED-2891`** existe no mock [`src/mocks/orders.mock.ts`](src/mocks/orders.mock.ts).
+
+```sh
+curl -s -X POST "$BASE/api/agent" \
+  -H "Content-Type: application/json" \
+  -d '{"message":"Cadê meu pedido #PED-2891?","session_id":"cen4-pedido"}' | jq
+```
+
+Esperado: `consultar_pedido` no log.
+
+---
+
+## Decisões técnicas
+
+- **Dados mockados em memória** — o desafio mede orquestração do agente, não persistência.
+- **`session_id`** — amarra carrinho, última busca, flags de checkout e histórico curto.
+- **Services separados das tools** — tools são adaptadores pro LLM; regras ficam em [`src/services/`](src/services/).
+- **Guardrail duplo no checkout** — regra no prompt + flag na sessão + checagem em `fechar_pedido`.
+- **`tool_calls_log` só operacional** — ferramentas, args e resultados; nada de chain-of-thought.
+- **`resolver_referencia`** — tool dedicada pra “Nº item da lista” em cima de `lastCatalogResults`, em vez de confiar só no modelo lembrar qual era o produto.
+
+---
+
+## Assunções
+
+- Cliente bem-comportado com `session_id` (sem auth).
+- Uma instância do servidor; estado só em RAM.
+- Ambiente com chave válida e acesso à API do Gemini pra testes reais.
+
+---
+
+## Limitações
+
+- Restart apaga sessões/carrinho (exceto mocks estáticos de catálogo e pedidos já seedados).
+- Respostas em linguagem natural **não** são determinísticas — valida pelo `tool_calls_log`.
+- Máximo de **cinco** voltas de tool por request.
+- Um processo, sem garantias forte de concorrência.
+
+---
+
+Qualquer dúvida pra depurar: olha primeiro **`.env`** e o **`tool_calls_log`** do último `curl`.
