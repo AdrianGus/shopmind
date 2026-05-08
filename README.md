@@ -21,6 +21,11 @@ supports `>=24 <25`.
 pnpm install
 ```
 
+If an external checklist asks for **`npm install`**, prefer **`pnpm install`**
+instead: this repository ships a **`pnpm-lock.yaml`** and documents the pnpm
+workflow. Plain `npm install` does not use that lockfile and is not the
+supported reproducible setup here.
+
 ## Scripts
 
 ```sh
@@ -53,6 +58,13 @@ Returns the service health status:
 
 Receives a user message and returns the agent's response with a log of every
 tool call executed during the turn.
+
+Invalid payloads (missing/empty fields) receive **400** with `status: "error"`.
+If the JSON is valid but **`GEMINI_API_KEY`** is missing, the network fails, or
+Gemini/Genkit errors for another infrastructure reason, the handler may still
+respond **200** with a short fallback `message`, an **empty** `tool_calls_log`,
+and `tool_calls_count: 0`. Treat a non-empty, sensible `tool_calls_log` as the
+signal that the agent turn actually exercised tools successfully.
 
 **Request:**
 
