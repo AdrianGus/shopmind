@@ -3,12 +3,14 @@ import { z } from "genkit";
 
 import { searchCatalog } from "../../services/catalog.service.js";
 import type { CatalogSearchInput } from "../../services/catalog.service.js";
+import { updateLastCatalogResults } from "../../stores/session.store.js";
 import { ai } from "../genkit.js";
 
 const searchCatalogInputSchema = z.object({
   query: z.string().trim().min(1),
   category: z.string().trim().min(1).optional(),
   max_price: z.number().nonnegative().optional(),
+  session_id: z.string().trim().min(1),
 });
 
 export const searchCatalogTool: ToolAction = ai.defineTool(
@@ -18,7 +20,7 @@ export const searchCatalogTool: ToolAction = ai.defineTool(
       "Search the product catalog by query, optional category, and optional maximum price.",
     inputSchema: searchCatalogInputSchema,
   },
-  async (input) => {
+  async ({ session_id: sessionId, ...input }) => {
     const serviceInput: CatalogSearchInput = {
       query: input.query,
     };
@@ -31,6 +33,9 @@ export const searchCatalogTool: ToolAction = ai.defineTool(
       serviceInput.maxPrice = input.max_price;
     }
 
-    return searchCatalog(serviceInput);
+    const results = searchCatalog(serviceInput);
+    updateLastCatalogResults(sessionId, results);
+
+    return results;
   },
 );

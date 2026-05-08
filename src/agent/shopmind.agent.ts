@@ -4,7 +4,7 @@ import { ai } from "../ai/genkit.js";
 import { allTools } from "../ai/tools/index.js";
 import { getSession, addSessionMessage } from "../stores/session.store.js";
 import type { SessionMessage } from "../stores/session.store.js";
-import { shopmindSystemPrompt } from "./system-prompt.js";
+import { buildSystemPrompt } from "./system-prompt.js";
 
 export type ToolCallLogEntry = {
   tool: string;
@@ -61,7 +61,7 @@ export const runShopMindAgent = async (input: {
   const history = toGenkitMessages(session.messages);
 
   const response = await ai.generate({
-    system: shopmindSystemPrompt,
+    system: buildSystemPrompt(input.session_id),
     messages: history,
     prompt: input.message,
     tools: allTools,
