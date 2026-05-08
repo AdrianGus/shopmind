@@ -1,24 +1,15 @@
 import type { RequestHandler } from "express";
+import { z } from "zod";
 
-const hasRequiredAgentFields = (
-  body: unknown,
-): body is { message: string; session_id: string } => {
-  if (body === null || typeof body !== "object") {
-    return false;
-  }
-
-  const payload = body as Record<string, unknown>;
-
-  return (
-    typeof payload.message === "string" &&
-    payload.message.trim().length > 0 &&
-    typeof payload.session_id === "string" &&
-    payload.session_id.trim().length > 0
-  );
-};
+const agentRequestSchema = z.object({
+  message: z.string().trim().min(1),
+  session_id: z.string().trim().min(1),
+});
 
 export const handleAgentRequest: RequestHandler = (req, res) => {
-  if (!hasRequiredAgentFields(req.body)) {
+  const validation = agentRequestSchema.safeParse(req.body);
+
+  if (!validation.success) {
     res.status(400).json({
       status: "error",
       message: "message and session_id are required",
